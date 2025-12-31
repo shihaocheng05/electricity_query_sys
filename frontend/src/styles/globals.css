@@ -1,0 +1,221 @@
+/* 全局样式：重置、主题变量引用与基础排版规则。 */
+
+/* ========== CSS Reset ========== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-page);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ========== 排版 ========== */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+}
+
+h1 {
+  font-size: var(--font-size-extra-large);
+  margin-bottom: var(--spacing-lg);
+}
+
+h2 {
+  font-size: var(--font-size-large);
+  margin-bottom: var(--spacing-base);
+}
+
+h3 {
+  font-size: var(--font-size-medium);
+  margin-bottom: var(--spacing-md);
+}
+
+h4, h5, h6 {
+  font-size: var(--font-size-base);
+  margin-bottom: var(--spacing-sm);
+}
+
+p {
+  margin: 0 0 var(--spacing-base) 0;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast) var(--transition-ease);
+}
+
+a:hover {
+  color: var(--color-primary-dark);
+}
+
+a:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ========== 滚动条样式 ========== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-page);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-base);
+  border-radius: var(--border-radius-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* ========== 通用工具类 ========== */
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-base);
+}
+
+.card {
+  background: var(--color-bg-card);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-base);
+  padding: var(--spacing-lg);
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ========== 动画 ========== */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity var(--transition-base) var(--transition-ease);
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-fade-enter-active {
+  transition: all var(--transition-base) var(--transition-ease);
+}
+
+.slide-fade-leave-active {
+  transition: all var(--transition-fast) var(--transition-ease);
+}
+
+.slide-fade-enter-from {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.slide-fade-leave-to {
+  transform: translateY(10px);
+  opacity: 0;
+}
+
+/* ========== 响应式断点 ========== */
+@media (max-width: 768px) {
+  :root {
+    --font-size-base: 13px;
+    --spacing-base: 12px;
+    --size-header-height: 50px;
+  }
+  
+  .container {
+    padding: 0 var(--spacing-sm);
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --font-size-base: 12px;
+    --spacing-base: 10px;
+  }
+}

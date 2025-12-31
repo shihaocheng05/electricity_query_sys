@@ -1,0 +1,6 @@
+backend/.env
+backend/instance/
+backend/__pycache__/
+backend/*.pyc
+backend/init_db.py
+backend/app/config
