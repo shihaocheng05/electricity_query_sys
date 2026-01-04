@@ -358,7 +358,7 @@ class UsageService:
         :param proof_image: 读数凭证图片URL（可选）
         :return: 录入结果
         """
-        from models.meter import MeterRecord, RecordType
+        from ..models.meter import MeterRecord, RecordType
         
         # 1. 校验电表是否存在
         meter = Meter.query.get(meter_id)

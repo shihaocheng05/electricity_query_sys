@@ -179,11 +179,12 @@ class UserServices:
         return False
     
     @staticmethod
-    def modify_user_msg(user_id,mail,real_name=None,idcard=None,region_id=None)->dict:
+    @staticmethod
+    def modify_user_msg(user_id,mail=None,real_name=None,idcard=None,region_id=None)->dict:
         """
         修改个人信息：权限已在接口层校验，不包括修改密码，修改密码调用专门的视图函数
         :param user_id: 被修改者id
-        :param mail: 邮箱
+        :param mail: 邮箱（可选）
         :param password: 密码
         :param real_name: 真实姓名
         :param idcard: 身份证
@@ -195,21 +196,36 @@ class UserServices:
 
         if user is None:
             raise BusinessException("用户不存在",404)
-        if mail==user.mail and real_name==real_name and idcard==idcard and region_id==region_id:
-            raise BusinessException("没有需要修改的信息")
-        mailuser=db.session.query(User).filter_by(mail=mail).first()
-        if mailuser is not None and mailuser.id!=user_id:
-            raise BusinessException("当前邮箱已被他人注册！")
-        idcarduser=db.session.query(User).filter_by(idcard=idcard).first()
-        if idcarduser is not None and idcarduser.id!=user_id:
-            raise BusinessException("当前身份证已被他人注册！")
-        if not db.session.query(Region).filter_by(id=region_id).first():
-            raise BusinessException("片区id不存在！")        
         
-        user.mail=mail
-        user.real_name=real_name
-        user.idcard=idcard
-        user.region_id=region_id
+        # 验证邮箱是否被他人使用（只在提供了邮箱且邮箱发生改变时才验证）
+        if mail is not None and mail != user.mail:
+            mailuser=db.session.query(User).filter_by(mail=mail).first()
+            if mailuser is not None:
+                raise BusinessException("当前邮箱已被他人注册！")
+            user.mail = mail
+        elif mail is not None:
+            # 邮箱未改变，也更新（保持一致性）
+            user.mail = mail
+        
+        # 验证身份证是否被他人使用（只在提供了身份证且身份证发生改变时才验证）
+        if idcard is not None and idcard != user.idcard:
+            idcarduser=db.session.query(User).filter_by(idcard=idcard).first()
+            if idcarduser is not None:
+                raise BusinessException("当前身份证已被他人注册！")
+            user.idcard = idcard
+        elif idcard is not None:
+            # 身份证未改变，也更新
+            user.idcard = idcard
+        
+        # 只在提供了 region_id 时才验证
+        if region_id is not None:
+            if not db.session.query(Region).filter_by(id=region_id).first():
+                raise BusinessException("片区id不存在！")
+            user.region_id = region_id
+        
+        # 更新真实姓名
+        if real_name is not None:
+            user.real_name = real_name
 
         try:
             db.session.commit()
@@ -278,7 +294,7 @@ class UserServices:
                 "meter_type": meter.meter_type.value,
                 "install_address": meter.install_address,
                 "status": meter.status.value,
-                "install_date": meter.install_date.strftime("%Y-%m-%d") if meter.install_date else None
+                "install_date": meter.install_time.strftime("%Y-%m-%d") if meter.install_time else None
             })
         
         return {

@@ -42,6 +42,11 @@ const router = createRouter({
           meta: { title: '片区分析', requiresAdmin: true }
         },
         {
+          path: 'usage-management',
+          component: () => import('../views/UsageManagement.vue'),
+          meta: { title: '数据管理', requiresAdmin: true }
+        },
+        {
           path: 'admin',
           component: () => import('../views/Admin.vue'),
           meta: { title: '系统管理', requiresSuperAdmin: true }
@@ -115,7 +120,7 @@ router.beforeEach(async (to, from, next) => {
   
   // 设置页面标题
   if (to.meta.title) {
-    document.title = `${to.meta.title} - 电费查询系统`
+    document.title = `${to.meta.title} - 用电信息系统`
   }
   
   console.log('允许访问:', to.path)

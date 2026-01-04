@@ -48,6 +48,12 @@ const menuItems: MenuItem[] = [
     roles: ['super_admin', 'area_admin'] // 仅管理员可见
   },
   {
+    path: '/usage-management',
+    label: '数据管理',
+    icon: '📝',
+    roles: ['super_admin', 'area_admin'] // 仅管理员可见
+  },
+  {
     path: '/admin',
     label: '系统管理',
     icon: '🔧',

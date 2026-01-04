@@ -228,16 +228,18 @@ const maxPeakUsage = computed(() => {
 const loadRegions = async () => {
   try {
     const response = await httpService.get('/system/region/list')
-    if (response.data) {
-      regions.value = response.data
+    if (response.data && response.data.regions) {
+      regions.value = response.data.regions
       if (regions.value.length > 0) {
         selectedRegionId.value = regions.value[0].region_id
         loadAnalysisData()
+      } else {
+        toast.error('暂无片区数据，请先创建片区')
       }
     }
   } catch (error: any) {
     console.error('加载片区列表失败:', error)
-    toast.error('加载片区列表失败')
+    toast.error('加载片区列表失败: ' + (error.message || '未知错误'))
   }
 }
 

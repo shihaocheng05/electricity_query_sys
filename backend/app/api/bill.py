@@ -110,10 +110,11 @@ def query_bills():
     try:
         current_user_id = g.user_id
         
-        # 获取用户角色
+        # 获取用户角色（返回枚举的字符串值，如"resident"）
         from ..models import User
         user = User.query.get(current_user_id)
-        user_role = user.role.name.value if user and user.role else "RESIDENT"
+        # user.role.name.value 返回小写字符串如"resident"，需要转为大写匹配
+        user_role = user.role.name.value.upper() if user and user.role else "RESIDENT"
         
         # 获取查询参数
         user_id = request.args.get("user_id", type=int)

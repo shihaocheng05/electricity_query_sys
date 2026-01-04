@@ -29,7 +29,7 @@ def install_meter():
     {
         "target_user_id": 1,
         "region_id": 1,
-        "current_region_id": 1,
+
         "install_address": "北京市朝阳区XX路XX�?
     }
     """
@@ -39,7 +39,6 @@ def install_meter():
         result = MeterServices.meter_install(
             user_id=data.get("target_user_id"),
             region_id=data.get("region_id"),
-            current_region_id=data.get("current_region_id"),
             install_address=data.get("install_address")
         )
         
@@ -308,6 +307,59 @@ def query_meters():
         return jsonify({
             "success": False,
             "message": f"查询失败：{str(e)}",
+            "code": 500
+        }), 500
+
+
+@meter_bp.route("/available", methods=["GET"])
+@check_permission(require_admin=True, require_permit="query_meter")  # 需要管理员权限
+def query_available_meters():
+    """
+    查询空闲电表列表接口（仅管理员）
+    ---
+    功能：查询未分配给用户的电表（user_id为空）
+    Query参数:
+        region_id: 片区ID（可选，片区管理员自动使用自己的片区）
+        page: 页码（默认1）
+        per_page: 每页数量（默认20）
+    """
+    try:
+        user_id = g.user_id
+        region_id = request.args.get("region_id", type=int)
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 20, type=int)
+        
+        # 获取用户信息
+        user = User.query.get(user_id)
+        user_role = user.role.name.value if user and user.role else None
+        
+        # 片区管理员只能查询自己片区的空闲电表
+        if user_role == "area_admin":
+            region_id = user.region_id
+        
+        # 调用服务层
+        result = MeterServices.query_available_meters(
+            region_id=region_id,
+            page=page,
+            per_page=per_page
+        )
+        
+        return jsonify({
+            "success": True,
+            "message": "查询成功",
+            "data": result
+        }), 200
+        
+    except BusinessException as e:
+        return jsonify({
+            "success": False,
+            "message": e.msg,
+            "code": e.code
+        }), e.code
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"查询空闲电表失败：{str(e)}",
             "code": 500
         }), 500
 

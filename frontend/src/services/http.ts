@@ -96,7 +96,8 @@ class HttpService {
             (response:AxiosResponse<any>):any => {
             // 处理响应数据
                 const res=response.data;
-                if(res.code&&res.code!==200){       //200是业务成功
+                // 检查success字段，如果为false则认为是业务错误
+                if(res.success === false){       
                     console.error("响应错误：",res.message||"未知错误");
                     return Promise.reject(new ErrorCodes(res))      //封装为自定义错误类型
             }
@@ -106,8 +107,11 @@ class HttpService {
                 // 新增：Token 刷新逻辑
                 const config = error.config;
 
+                // 检查是否是登录接口，登录接口的401应该直接返回错误
+                const isLoginRequest = config?.url?.includes('/user/login');
+                
                 // 检查是否是 401 Unauthorized（token 过期）
-                if (error.response?.status === 401 && config && !config._retry) {
+                if (error.response?.status === 401 && config && !config._retry && !isLoginRequest) {
                   config._retry = true; // 标记已重试，避免无限循环
 
                   // 如果正在刷新 token，将当前请求加入队列等待

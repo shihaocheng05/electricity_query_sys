@@ -138,9 +138,8 @@ class ValidateUpdateNotificationStatus(BaseServerModel):
 # ============ 电表相关验证 ============
 #电表安装的模型类
 class ValidateMeterInstall(BaseServerModel):
-    user_id: int = Field(..., gt=0, description="用户ID")
+    target_user_id: int = Field(..., gt=0, description="用户ID")
     region_id: int = Field(..., gt=0, description="片区ID")
-    current_region_id: int = Field(..., gt=0, description="当前片区ID")
     install_address: str = Field(..., min_length=5, max_length=100, description="安装地址")
 
 #更新电表状态的模型�?

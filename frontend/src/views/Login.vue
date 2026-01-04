@@ -2,7 +2,7 @@
  <template>
     <div class="auth-container">
         <el-card class="auth-card">
-            <div class="auth-title">ELECTRICITY QUERY</div>
+            <div class="auth-title">ELECTRICITY SYSTEM</div>
             <el-tabs v-model="activeTab" class="auth-tabs">
                 <el-tab-pane label="登录" name="login">
                     <el-form :model="loginForm" ref="loginFormRef" class="login-form">
@@ -259,6 +259,24 @@ const handleCancelReset = () => {
 }
 
 const handleLogin = async () => {
+  // 前端表单验证
+  if (!loginForm.value.mail) {
+    ElMessage.warning('📧 请输入邮箱地址')
+    return
+  }
+  
+  if (!loginForm.value.password) {
+    ElMessage.warning('🔒 请输入密码')
+    return
+  }
+  
+  // 邮箱格式简单验证
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRegex.test(loginForm.value.mail)) {
+    ElMessage.warning('⚠️ 请输入有效的邮箱地址')
+    return
+  }
+  
   try {
     console.log('开始登录...')
     const result = await signIn({
@@ -266,13 +284,37 @@ const handleLogin = async () => {
       password: loginForm.value.password
     })
     console.log('登录结果:', result)
-    ElMessage.success('登录成功！')
+    ElMessage.success('✅ 登录成功！')
     console.log('准备跳转到 /dashboard')
     await router.push('/dashboard')
     console.log('跳转完成')
   } catch (error: any) {
     console.error('登录错误:', error)
-    ElMessage.error(error.message || '登录失败,请检查邮箱和密码')
+    
+    // 提取错误信息，根据不同的错误类型显示不同的提示
+    let errorMessage = '登录失败，请稍后重试'
+    
+    // 检查是否是401错误（密码错误或账号不存在）
+    if (error.response?.status === 401) {
+      errorMessage = '邮箱或密码错误，请重新输入'
+    } else if (error.message && !error.message.includes('status code')) {
+      // 使用后端返回的具体错误信息（排除技术性错误）
+      errorMessage = error.message
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message
+    }
+    
+    // 根据常见错误类型给出更友好的提示
+    if (errorMessage.includes('邮箱') || errorMessage.includes('密码') || errorMessage.includes('错误')) {
+      ElMessage.error(`⚠️ ${errorMessage}`)
+    } else if (errorMessage.includes('不存在')) {
+      ElMessage.error('🚫 该账号不存在，请检查邮箱地址')
+    } else if (error.response?.status === 401) {
+      ElMessage.error('⚠️ 邮箱或密码错误，请重新输入')
+    } else {
+      ElMessage.error(`❌ ${errorMessage}`)
+    }
+    
     console.error('Login error:', error)
   }
 }
@@ -280,12 +322,12 @@ const handleLogin = async () => {
 const handleRegister = async () => {
   try {
     if (registerForm.value.password !== confirmPassword.value) {
-      ElMessage.error('两次输入的密码不一致')
+      ElMessage.error('⚠️ 两次输入的密码不一致')
       return
     }
     
     if (!registerForm.value.region_id) {
-      ElMessage.error('请输入地区ID')
+      ElMessage.error('⚠️ 请输入地区ID')
       return
     }
     
@@ -297,8 +339,8 @@ const handleRegister = async () => {
       region_id: registerForm.value.region_id
     })
     
-    if (response.data.success) {
-      ElMessage.success('注册成功！请登录')
+    if (response.success) {
+      ElMessage.success('✅ 注册成功！请登录')
       // 重置表单
       registerForm.value = {
         mail: '',
@@ -310,17 +352,27 @@ const handleRegister = async () => {
       confirmPassword.value = ''
       activeTab.value = 'login'
     } else {
-      ElMessage.error(response.data.message || '注册失败')
+      ElMessage.error(`❌ ${response.message || '注册失败'}`)
     }
   } catch (error: any) {
     // 显示详细的错误信息
     let errorMsg = '注册请求出错'
-    if (error.response?.data?.message) {
-      errorMsg = error.response.data.message
-    } else if (error.message) {
+    
+    if (error.message) {
       errorMsg = error.message
+    } else if (error.response?.data?.message) {
+      errorMsg = error.response.data.message
     }
-    ElMessage.error(errorMsg)
+    
+    // 根据常见错误类型给出更友好的提示
+    if (errorMsg.includes('已存在') || errorMsg.includes('已注册')) {
+      ElMessage.error('🚫 该邮箱已被注册，请直接登录或使用其他邮箱')
+    } else if (errorMsg.includes('格式')) {
+      ElMessage.error(`⚠️ ${errorMsg}`)
+    } else {
+      ElMessage.error(`❌ ${errorMsg}`)
+    }
+    
     console.error('Register error:', error)
   }
 }

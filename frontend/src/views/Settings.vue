@@ -96,6 +96,116 @@
       </div>
     </div>
 
+    <!-- 电表管理 -->
+    <div class="settings__card">
+      <h2 class="settings__card-title">电表管理</h2>
+      <div class="meter-management">
+        <!-- 已绑定电表列表 -->
+        <div class="meter-section">
+          <h3>📊 我的电表</h3>
+          <div v-if="meterList.length > 0" class="meter-list">
+            <div v-for="meter in meterList" :key="meter.meter_id" class="meter-item">
+              <div class="meter-info">
+                <div class="meter-header">
+                  <div class="meter-code">{{ meter.meter_code }}</div>
+                  <span class="meter-id">ID: {{ meter.meter_id }}</span>
+                </div>
+                <div class="meter-details">
+                  <span class="meter-address">📍 {{ meter.install_address }}</span>
+                  <span class="meter-status" :class="'meter-status--' + meter.status.toLowerCase()">
+                    {{ getMeterStatusLabel(meter.status) }}
+                  </span>
+                </div>
+              </div>
+              <button class="action-btn action-btn--danger" @click="handleUnbindMeter(meter)">
+                解绑
+              </button>
+            </div>
+          </div>
+          <div v-else class="empty-state">
+            暂无绑定的电表
+          </div>
+        </div>
+
+        <!-- 管理员：安装新电表 -->
+        <div v-if="isAdmin" class="install-meter-form meter-section">
+          <h3>🔧 安装新电表（管理员）</h3>
+          <p class="form-hint">💡 为用户安装全新的电表，安装后将自动绑定到该用户</p>
+          <div class="settings__form-item">
+            <label>目标用户ID</label>
+            <input
+              v-model.number="installMeterForm.target_user_id"
+              type="number"
+              placeholder="输入用户ID"
+            />
+          </div>
+          <div class="settings__form-item">
+            <label>安装地址</label>
+            <input
+              v-model="installMeterForm.install_address"
+              type="text"
+              placeholder="例如：北京市朝阳区XX路XX号"
+            />
+          </div>
+          <button class="settings__button" @click="handleInstallMeter">
+            安装电表
+          </button>
+        </div>
+
+        <!-- 空闲电表列表（仅管理员）-->
+        <div v-if="isAdmin" class="available-meters-section meter-section">
+          <h3>📋 空闲电表列表</h3>
+          <p class="form-hint">💡 显示本片区所有未分配给用户的电表</p>
+          <button class="settings__button settings__button--secondary" @click="loadAvailableMeters" style="margin-bottom: 16px;">
+            刷新列表
+          </button>
+          <div v-if="availableMeterList.length > 0" class="meter-list">
+            <div v-for="meter in availableMeterList" :key="meter.meter_id" class="meter-item">
+              <div class="meter-info">
+                <div class="meter-header">
+                  <div class="meter-code">{{ meter.meter_code }}</div>
+                  <span class="meter-id">ID: {{ meter.meter_id }}</span>
+                </div>
+                <div class="meter-details">
+                  <span class="meter-address">📍 {{ meter.install_address }}</span>
+                  <span class="meter-type">类型: {{ meter.meter_type }}</span>
+                  <span class="meter-time">安装: {{ meter.install_time }}</span>
+                </div>
+              </div>
+              <div class="meter-actions">
+                <button class="action-btn action-btn--copy" @click="copyMeterCode(meter.meter_code)">
+                  📋 复制编号
+                </button>
+                <button class="action-btn action-btn--info" @click="copyMeterId(meter.meter_id)">
+                  🔢 复制ID
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="empty-state">
+            暂无空闲电表
+          </div>
+        </div>
+
+        <!-- 绑定未分配的电表 -->
+        <div class="bind-meter-form meter-section">
+          <h3>🔄 电表更换/过户</h3>
+          <p class="form-hint">💡 绑定一个尚未分配给任何用户的电表（用于电表更换或过户场景）</p>
+          <div class="settings__form-item">
+            <label>电表编号</label>
+            <input
+              v-model="bindMeterForm.meter_code"
+              type="text"
+              placeholder="例如：BJ-CY-S-202601011200-001"
+            />
+          </div>
+          <button class="settings__button" @click="handleBindMeter">
+            绑定电表
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 密码修改 -->
     <div class="settings__card">
       <h2 class="settings__card-title">修改密码</h2>
@@ -127,24 +237,6 @@
         <button class="settings__button" @click="handleChangePassword">
           修改密码
         </button>
-      </div>
-    </div>
-
-    <!-- 主题设置 -->
-    <div class="settings__card">
-      <h2 class="settings__card-title">外观设置</h2>
-      <div class="settings__form">
-        <div class="settings__form-item">
-          <label>主题模式</label>
-          <select v-model="theme" @change="handleThemeChange">
-            <option value="light">浅色模式</option>
-            <option value="dark">深色模式</option>
-            <option value="auto">跟随系统</option>
-          </select>
-        </div>
-        <p class="settings__note">
-          🎨 深色模式功能即将上线
-        </p>
       </div>
     </div>
 
@@ -191,6 +283,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
 import userApi, { type UserInfo } from '@/services/api/user'
+import meterApi from '@/services/api/meter'
 import { toast } from '@/utils/toast'
 import { loading } from '@/utils/loading'
 
@@ -222,7 +315,17 @@ const passwordForm = ref({
   confirm_password: ''
 })
 
-const theme = ref(localStorage.getItem('theme') || 'light')
+// 电表管理相关
+const meterList = ref<any[]>([])
+const bindMeterForm = ref({
+  meter_code: ''
+})
+const installMeterForm = ref({
+  target_user_id: null as number | null,
+  install_address: ''
+})
+
+const availableMeterList = ref<any[]>([])
 
 // 用户管理相关
 const userList = ref<any[]>([])
@@ -361,7 +464,10 @@ const changePage = (page: number) => {
 }
 
 const editUser = (user: any) => {
-  editingUser.value = { ...user }
+  editingUser.value = { 
+    ...user,
+    idcard: user.id_card // 转换字段名
+  }
   showEditModal.value = true
 }
 
@@ -373,18 +479,27 @@ const closeEditModal = () => {
 const saveEditedUser = async () => {
   try {
     loading.show('保存中...')
-    // 调用更新用户API
-    await userApi.updateInfo({
+    
+    // 构建请求payload
+    const payload: any = {
       target_user_id: editingUser.value.user_id,
       mail: editingUser.value.mail,
-      real_name: editingUser.value.real_name,
-      idcard: editingUser.value.idcard
-    })
+      real_name: editingUser.value.real_name
+    }
+    
+    // 身份证如果包含星号说明是脱敏数据，不发送
+    if (editingUser.value.idcard && !editingUser.value.idcard.includes('*')) {
+      payload.idcard = editingUser.value.idcard
+    }
+    
+    // 调用更新用户API
+    await userApi.updateInfo(payload)
     toast.success('用户信息更新成功')
     closeEditModal()
     searchUsers()
   } catch (error: any) {
-    toast.error(error.message || '更新失败')
+    const errorMsg = error.response?.data?.message || error.message || '更新失败'
+    toast.error(errorMsg)
   } finally {
     loading.hide()
   }
@@ -433,19 +548,197 @@ const handleChangePassword = async () => {
   }
 }
 
-const handleThemeChange = () => {
-  localStorage.setItem('theme', theme.value)
-  toast.info(`已切换到${theme.value === 'light' ? '浅色' : theme.value === 'dark' ? '深色' : '自动'}模式`)
+// 获取电表状态标签
+const getMeterStatusLabel = (status: string) => {
+  const statusMap: Record<string, string> = {
+    'NORMAL': '正常',
+    'ABNORMAL': '异常',
+    'OFFLINE': '离线',
+    'MAINTAIN': '维护中'
+  }
+  return statusMap[status] || status
+}
+
+// 加载用户电表列表
+const loadUserMeters = async () => {
+  try {
+    console.log('准备获取电表列表...')
+    const response = await userApi.getUserMeters()
+    console.log('电表列表原始响应:', JSON.stringify(response, null, 2))
+    if (response && response.data) {
+      console.log('response.data:', response.data)
+      // 后端返回格式: { success: true, message: "获取成功", data: { total: 1, meters: [...] } }
+      const metersData = response.data
+      console.log('metersData:', metersData)
+      if (metersData && metersData.meters) {
+        console.log('找到电表数据:', metersData.meters)
+        meterList.value = metersData.meters
+      } else if (Array.isArray(metersData)) {
+        console.log('电表数据是数组:', metersData)
+        meterList.value = metersData
+      } else {
+        console.log('未找到电表数据')
+      }
+    }
+    console.log('最终meterList:', meterList.value)
+  } catch (error: any) {
+    console.error('加载电表列表失败:', error)
+    console.error('错误详情:', error.response)
+    toast.error('加载电表列表失败')
+  }
+}
+
+// 绑定电表
+const handleBindMeter = async () => {
+  if (!bindMeterForm.value.meter_code) {
+    toast.warning('请输入电表编号')
+    return
+  }
+
+  try {
+    loading.show('绑定中...')
+    await userApi.bindMeter({
+      target_user_id: userInfo.value.user_id,
+      meter_code: bindMeterForm.value.meter_code
+    })
+    toast.success('电表绑定成功')
+    bindMeterForm.value.meter_code = ''
+    // 重新加载电表列表
+    await loadUserMeters()
+  } catch (error: any) {
+    console.error('绑定电表失败:', error)
+    const errorMsg = error.response?.data?.message || error.message || '绑定失败'
+    toast.error(errorMsg)
+  } finally {
+    loading.hide()
+  }
+}
+
+// 解绑电表
+const handleUnbindMeter = async (meter: any) => {
+  if (!confirm(`确定要解绑电表 ${meter.meter_code} 吗？`)) {
+    return
+  }
+
+  try {
+    loading.show('解绑中...')
+    await userApi.unbindMeter({
+      target_user_id: userInfo.value.user_id,
+      meter_id: meter.meter_id
+    })
+    toast.success('电表解绑成功')
+    // 重新加载电表列表
+    await loadUserMeters()
+  } catch (error: any) {
+    console.error('解绑电表失败:', error)
+    const errorMsg = error.response?.data?.message || error.message || '解绑失败'
+    toast.error(errorMsg)
+  } finally {
+    loading.hide()
+  }
+}
+
+// 安装新电表（管理员）
+const handleInstallMeter = async () => {
+  if (!installMeterForm.value.target_user_id) {
+    toast.warning('请输入目标用户ID')
+    return
+  }
   
-  if (theme.value === 'dark') {
-    toast.warning('深色模式即将上线，敬请期待')
+  if (!installMeterForm.value.install_address) {
+    toast.warning('请输入安装地址')
+    return
+  }
+
+  try {
+    loading.show('安装中...')
+    const response = await meterApi.installMeter({
+      target_user_id: installMeterForm.value.target_user_id,
+      region_id: userInfo.value.region_id || 1,
+      install_address: installMeterForm.value.install_address
+    })
+    
+    if (response.data) {
+      const meterInfo = response.data.meter_info || response.data
+      toast.success(`电表安装成功！电表编号：${meterInfo.meter_code}`)
+      // 清空表单
+      installMeterForm.value.target_user_id = null
+      installMeterForm.value.install_address = ''
+      // 重新加载电表列表
+      await loadUserMeters()
+    }
+  } catch (error: any) {
+    console.error('安装电表失败:', error)
+    const errorMsg = error.response?.data?.message || error.message || '安装失败'
+    toast.error(errorMsg)
+  } finally {
+    loading.hide()
+  }
+}
+
+// 加载空闲电表列表
+const loadAvailableMeters = async () => {
+  if (!isAdmin.value) return
+  
+  try {
+    loading.show('加载中...')
+    const response = await meterApi.getAvailableMeters({
+      page: 1,
+      per_page: 50
+    })
+    
+    if (response.data && response.data.meters) {
+      availableMeterList.value = response.data.meters
+      toast.success(`找到 ${response.data.meters.length} 个空闲电表`)
+    }
+  } catch (error: any) {
+    console.error('加载空闲电表失败:', error)
+    toast.error('加载空闲电表失败')
+  } finally {
+    loading.hide()
+  }
+}
+
+// 复制电表编号
+const copyMeterCode = async (meterCode: string) => {
+  try {
+    await navigator.clipboard.writeText(meterCode)
+    toast.success('电表编号已复制到剪贴板')
+  } catch (error) {
+    // 降级方案
+    const textArea = document.createElement('textarea')
+    textArea.value = meterCode
+    document.body.appendChild(textArea)
+    textArea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textArea)
+    toast.success('电表编号已复制')
+  }
+}
+
+// 复制电表ID
+const copyMeterId = async (meterId: number) => {
+  try {
+    await navigator.clipboard.writeText(meterId.toString())
+    toast.success('电表ID已复制到剪贴板')
+  } catch (error) {
+    // 降级方案
+    const textArea = document.createElement('textarea')
+    textArea.value = meterId.toString()
+    document.body.appendChild(textArea)
+    textArea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textArea)
+    toast.success('电表编号已复制')
   }
 }
 
 onMounted(() => {
   loadUserInfo()
+  loadUserMeters()
   if (isAdmin.value) {
     searchUsers()
+    loadAvailableMeters()
   }
 })
 </script>
@@ -561,6 +854,198 @@ onMounted(() => {
   text-align: center;
   padding: 40px;
   color: var(--color-text-secondary);
+}
+
+/* 电表管理样式 */
+.meter-management {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.meter-section {
+  padding: 20px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+}
+
+.meter-section h3 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.meter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.meter-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #f9fafb;
+  transition: all 0.2s;
+}
+
+.meter-item:hover {
+  border-color: var(--color-primary);
+  background: #f0f9ff;
+}
+
+.meter-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meter-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.meter-code {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.meter-id {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.meter-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.meter-details {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.meter-address {
+  color: var(--color-text-secondary);
+}
+
+.meter-status {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.meter-status--normal {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.meter-status--abnormal {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.meter-status--offline {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.meter-status--maintain {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.install-meter-form {
+  border: 2px solid var(--color-primary) !important;
+  background: #f0f9ff !important;
+}
+
+.install-meter-form h3 {
+  color: var(--color-primary) !important;
+}
+
+.bind-meter-form {
+  border: 2px dashed #94a3b8 !important;
+  background: #f8fafc !important;
+}
+
+.bind-meter-form h3 {
+  color: #475569 !important;
+}
+
+.available-meters-section {
+  background: #fefce8 !important;
+  border: 2px solid #facc15 !important;
+}
+
+.available-meters-section h3 {
+  color: #854d0e !important;
+}
+
+.meter-type {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.meter-time {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.action-btn--copy {
+  background: #3b82f6;
+}
+
+.action-btn--copy:hover {
+  background: #2563eb;
+}
+
+.action-btn--info {
+  background: #8b5cf6;
+}
+
+.action-btn--info:hover {
+  background: #7c3aed;
+}
+
+.settings__button--secondary {
+  background: #6b7280;
+}
+
+.settings__button--secondary:hover {
+  background: #4b5563;
+}
+
+.form-hint {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.action-btn--danger {
+  background: #dc2626;
+}
+
+.action-btn--danger:hover {
+  background: #b91c1c;
 }
 
 .pagination {

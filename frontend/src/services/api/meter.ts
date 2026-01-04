@@ -119,6 +119,37 @@ export const getMeterRecords=(meter_id:number)=>{
     return httpService.get<ApiResponse<MeterRecordPaginationResponse<MeterRecordInfo>>>(`/meter/records/${meter_id}`);
 }
 
+/**
+ * 8. 查询空闲电表（未分配的电表）
+ * GET /api/v1/meter/available
+ */
+export const getAvailableMeters = (params?: {
+  region_id?: number;
+  page?: number;
+  per_page?: number;
+}) => {
+  return httpService.get<ApiResponse<{
+    meters: Array<{
+      meter_id: number;
+      meter_code: string;
+      meter_type: string;
+      install_address: string;
+      install_time: string;
+      region_name: string;
+      region_id: number;
+      status: string;
+    }>;
+    pagination: {
+      total: number;
+      page: number;
+      per_page: number;
+      pages: number;
+      has_next: boolean;
+      has_prev: boolean;
+    };
+  }>>('/meter/available', { params });
+};
+
 export default {
     installMeter,
     updateMeterStatus,
@@ -126,5 +157,6 @@ export default {
     repairMeter,
     validateReading,
     getMeterList,
-    getMeterRecords
+    getMeterRecords,
+    getAvailableMeters
 };

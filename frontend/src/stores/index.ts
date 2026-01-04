@@ -24,7 +24,15 @@ export const useAuthStore=defineStore("auth",()=>{
         const res = await apiLogin(credentials);
         // 注意：http 拦截器已经返回了 response.data，所以 res 就是后端返回的数据
         // 后端格式：{ success: true, message: '...', data: { token, refresh_token, user_info } }
-        if (res && (res as any).success && (res as any).data?.token) {
+        
+        // 检查登录是否成功
+        if (!res || !(res as any).success) {
+            // 登录失败，抛出错误
+            const errorMsg = (res as any)?.message || '登录失败';
+            throw new Error(errorMsg);
+        }
+        
+        if ((res as any).data?.token) {
             const t = (res as any).data.token;
             isLoggedIn.value = true;
             token.value = t;
@@ -39,7 +47,11 @@ export const useAuthStore=defineStore("auth",()=>{
                 user.value = (res as any).data.user_info;
                 localStorage.setItem('user_info', JSON.stringify((res as any).data.user_info));
             }
+        } else {
+            // 没有返回token，认为登录失败
+            throw new Error('登录失败：未获取到令牌');
         }
+        
         return res;
     }
 

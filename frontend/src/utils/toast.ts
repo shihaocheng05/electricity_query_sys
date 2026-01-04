@@ -35,6 +35,12 @@ export const toast = {
   }
 }
 
+// 便捷函数
+export const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', duration?: number) => {
+  const instance = initToast()
+  instance.show(message, type, duration)
+}
+
 // 清理函数（可选）
 export const destroyToast = () => {
   if (toastApp) {

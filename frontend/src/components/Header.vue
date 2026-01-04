@@ -1,7 +1,7 @@
 <template>
   <header class="header">
     <div class="header__left">
-      <h2 class="header__title">⚡ 电费查询系统</h2>
+      <h2 class="header__title">⚡ 用电信息系统</h2>
     </div>
     
     <div class="header__right">

@@ -249,7 +249,7 @@ class MeterServices:
         :param reading_time: 读数时间，默认当前时间
         :return: 校验结果
         """
-        from models.usage import IoTData, UsageData
+        from ..models.usage import IoTData, UsageData
         
         meter = Meter.query.get(meter_id)
         if meter is None:
@@ -381,12 +381,60 @@ class MeterServices:
             }
         }
     
-    #查询电表操作记录
+    @staticmethod
+    def query_available_meters(region_id=None, page=1, per_page=20):
+        """
+        查询空闲电表（未分配给用户的电表）
+        :param region_id: 片区ID（可选）
+        :param page: 页码
+        :param per_page: 每页数量
+        :return: 空闲电表列表
+        """
+        # 构建查询：user_id为空的电表
+        query = Meter.query.filter(Meter.user_id.is_(None))
+        
+        # 按片区筛选
+        if region_id:
+            query = query.filter_by(region_id=region_id)
+        
+        # 只查询正常状态的电表
+        query = query.filter_by(status=MeterStatus.NORMAL)
+        
+        # 分页
+        pagination = query.order_by(Meter.install_time.desc()).paginate(
+            page=page,
+            per_page=per_page,
+            error_out=False
+        )
+        
+        meters_list = []
+        for meter in pagination.items:
+            region = Region.query.get(meter.region_id)
+            meters_list.append({
+                "meter_id": meter.id,
+                "meter_code": meter.meter_code,
+                "meter_type": meter.meter_type.value,
+                "install_address": meter.install_address,
+                "install_time": meter.install_time.strftime("%Y-%m-%d %H:%M:%S") if meter.install_time else None,
+                "region_name": region.region_name if region else "未知片区",
+                "region_id": meter.region_id,
+                "status": meter.status.value
+            })
+        
+        return {
+            "meters": meters_list,
+            "pagination": {
+                "total": pagination.total,
+                "page": pagination.page,
+                "per_page": pagination.per_page,
+                "pages": pagination.pages,
+                "has_next": pagination.has_next,
+                "has_prev": pagination.has_prev
+            }
+        }
     @staticmethod
     def query_meter_records(meter_id, record_type=None, page=1, per_page=20):
         """
-        查询电表操作记录：
-        :param meter_id: 电表ID
         :param record_type: 记录类型筛选（可选）
         :param page: 页码
         :param per_page: 每页数量

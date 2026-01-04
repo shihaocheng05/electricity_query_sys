@@ -4,13 +4,13 @@
     <div class="auth-layout__container">
       <div class="auth-layout__card">
         <div class="auth-layout__logo">
-          <h1>⚡ 电费查询系统</h1>
-          <p>Electricity Bill Management System</p>
+          <h1>⚡ 用电信息系统</h1>
+          <p>Electricity Information Management System</p>
         </div>
         <RouterView />
       </div>
       <footer class="auth-layout__footer">
-        <p>&copy; 2024 电费查询系统. All rights reserved.</p>
+        <p>&copy; 2024 用电信息系统. All rights reserved.</p>
       </footer>
     </div>
   </div>

@@ -11,6 +11,24 @@ import io
 class AnalyzeServices:
     
     @staticmethod
+    def _get_all_sub_regions(region_id):
+        """
+        递归获取某个片区及其所有子片区的ID列表
+        :param region_id: 片区ID
+        :return: 包含该片区及所有子片区的ID列表
+        """
+        result = [region_id]
+        
+        # 查找直接子片区
+        sub_regions = Region.query.filter_by(parent_id=region_id).all()
+        
+        # 递归查找每个子片区的子片区
+        for sub_region in sub_regions:
+            result.extend(AnalyzeServices._get_all_sub_regions(sub_region.id))
+        
+        return result
+    
+    @staticmethod
     def get_user_statistics_summary(user_id):
         """
         获取用户统计摘要（Dashboard用）
@@ -64,6 +82,7 @@ class AnalyzeServices:
     def get_region_statistics_summary(region_id):
         """
         获取片区统计摘要（管理员Dashboard用）
+        包含该片区及所有下级片区的汇总数据
         :param region_id: 片区ID
         :return: 统计摘要数据
         """
@@ -71,11 +90,14 @@ class AnalyzeServices:
         if not region:
             raise BusinessException("片区不存在", 404)
         
-        # 获取该片区的所有电表
-        meters = Meter.query.filter_by(region_id=region_id).all()
+        # 获取该片区及所有子片区的ID列表
+        all_region_ids = AnalyzeServices._get_all_sub_regions(region_id)
+        
+        # 获取这些片区的所有电表
+        meters = Meter.query.filter(Meter.region_id.in_(all_region_ids)).all()
         meter_ids = [m.id for m in meters] if meters else []
         
-        # 获取该片区的所有用户（通过电表关联）
+        # 获取这些片区的所有用户（通过电表关联）
         user_ids = list(set([m.user_id for m in meters if m.user_id]))
         
         # 当月范围
@@ -119,7 +141,19 @@ class AnalyzeServices:
         # 获取用户的所有电表
         meters = Meter.query.filter_by(user_id=user_id).all()
         if not meters:
-            raise BusinessException("用户没有绑定电表", 404)
+            # 用户没有电表时返回空数据而不是错误
+            return {
+                "user_id": user_id,
+                "analysis_period": analysis_period,
+                "trend_data": [],
+                "summary": {
+                    "total_electricity": 0,
+                    "avg_electricity": 0,
+                    "peak_electricity": 0,
+                    "valley_electricity": 0
+                },
+                "comparison": None
+            }
         
         meter_ids = [m.id for m in meters]
         current_time = datetime.now()
@@ -170,11 +204,15 @@ class AnalyzeServices:
                 year_data[year]["valley_electricity"] += record.valley_electricity or 0
             
             for year in sorted(year_data.keys()):
+                # 计算该年的电费估算  
+                estimated_cost = round(year_data[year]["total_electricity"] * 0.6, 2)
+                
                 trend_data.append({
                     "period": str(year),
                     "total_electricity": round(year_data[year]["total_electricity"], 2),
                     "peak_electricity": round(year_data[year]["peak_electricity"], 2),
-                    "valley_electricity": round(year_data[year]["valley_electricity"], 2)
+                    "valley_electricity": round(year_data[year]["valley_electricity"], 2),
+                    "cost": estimated_cost
                 })
         else:
             for record in current_data:
@@ -183,11 +221,15 @@ class AnalyzeServices:
                 else:
                     period_str = record.usage_time.strftime("%Y-%m")
                 
+                # 计算该时期的电费（简单按0.6元/度计算，实际应查询账单）
+                estimated_cost = round(record.total_electricity * 0.6, 2)
+                
                 trend_data.append({
                     "period": period_str,
                     "total_electricity": round(record.total_electricity, 2),
                     "peak_electricity": round(record.peak_electricity or 0, 2),
-                    "valley_electricity": round(record.valley_electricity or 0, 2)
+                    "valley_electricity": round(record.valley_electricity or 0, 2),
+                    "cost": estimated_cost
                 })
         
         # 2. 对比同期用电量
@@ -220,7 +262,6 @@ class AnalyzeServices:
         cost_breakdown = AnalyzeServices._calculate_cost_breakdown(user_id, meter_ids, start_date)
         
         return {
-            "success": True,
             "analysis_period": analysis_period,
             "user_info": {
                 "user_id": user_id,
@@ -241,7 +282,7 @@ class AnalyzeServices:
     @staticmethod
     def _calculate_cost_breakdown(user_id, meter_ids, start_date):
         """计算用电成本占比（阶梯/分时费用）"""
-        from models.bill import PriceType, LadderLevel, TimePeriod
+        from ..models.bill import PriceType, LadderLevel, TimePeriod
         
         # 查询该时间段的账单详情
         bills = Bill.query.filter(
@@ -320,6 +361,7 @@ class AnalyzeServices:
     def analyze_region_electricity(region_id, analysis_period="month", compare_period=False):
         """
         片区用电分析（管理员专用）
+        包含该片区及所有下级片区的汇总数据
         :param region_id: 片区ID
         :param analysis_period: 分析周期（day/month/year）
         :param compare_period: 是否对比同期
@@ -329,8 +371,11 @@ class AnalyzeServices:
         if not region:
             raise BusinessException("片区不存在", 404)
         
-        # 获取该片区的所有电表
-        meters = Meter.query.filter_by(region_id=region_id).all()
+        # 获取该片区及所有子片区的ID列表
+        all_region_ids = AnalyzeServices._get_all_sub_regions(region_id)
+        
+        # 获取这些片区的所有电表
+        meters = Meter.query.filter(Meter.region_id.in_(all_region_ids)).all()
         if not meters:
             return {
                 "success": True,
@@ -488,7 +533,7 @@ class AnalyzeServices:
     @staticmethod
     def region_statistics(region_id=None, start_date=None, end_date=None, usage_level=False):
         """
-        区域用电统计
+        区域用电统计（包含下级片区的递归汇总）
         :param region_id: 片区ID（可选，不传则统计所有片区）
         :param start_date: 开始日期
         :param end_date: 结束日期
@@ -511,8 +556,11 @@ class AnalyzeServices:
         statistics = []
         
         for region in regions:
-            # 获取该片区的所有电表
-            meters = Meter.query.filter_by(region_id=region.id).all()
+            # 获取该片区及所有子片区的ID列表
+            all_region_ids = AnalyzeServices._get_all_sub_regions(region.id)
+            
+            # 获取这些片区的所有电表
+            meters = Meter.query.filter(Meter.region_id.in_(all_region_ids)).all()
             if not meters:
                 continue
             
@@ -621,7 +669,7 @@ class AnalyzeServices:
     @staticmethod
     def predict_peak_usage(region_id=None, predict_days=7):
         """
-        用电高峰预测
+        用电高峰预测（包含下级片区）
         :param region_id: 片区ID（可选）
         :param predict_days: 预测天数（默认7天）
         :return: 预测结果
@@ -632,8 +680,11 @@ class AnalyzeServices:
         
         # 获取电表
         if region_id:
-            meters = Meter.query.filter_by(region_id=region_id).all()
-            region_name = Region.query.get(region_id).region_name if Region.query.get(region_id) else "未知片区"
+            # 获取该片区及所有子片区的ID列表
+            all_region_ids = AnalyzeServices._get_all_sub_regions(region_id)
+            meters = Meter.query.filter(Meter.region_id.in_(all_region_ids)).all()
+            region = Region.query.get(region_id)
+            region_name = region.region_name if region else "未知片区"
         else:
             meters = Meter.query.all()
             region_name = "全部片区"
@@ -743,7 +794,7 @@ class AnalyzeServices:
     @staticmethod
     def export_data(user_id, export_type="usage", region_id=None, start_date=None, end_date=None, format_type="csv"):
         """
-        数据导出
+        数据导出（包含下级片区的递归汇总）
         :param user_id: 导出用户ID
         :param export_type: 导出类型（usage/bill）
         :param region_id: 片区ID（可选）
@@ -780,11 +831,14 @@ class AnalyzeServices:
         if not region_id:
             region_id = managed_region_ids[0]
         
+        # 获取该片区及所有子片区的ID列表
+        all_region_ids = AnalyzeServices._get_all_sub_regions(region_id)
+        
         if export_type == "usage":
-            data = AnalyzeServices._export_usage_data(region_id, start_date, end_date)
+            data = AnalyzeServices._export_usage_data(all_region_ids, start_date, end_date)
             headers = ["电表编号", "用户姓名", "片区", "日期", "总用电量(度)", "高峰用电量(度)", "低谷用电量(度)", "数据类型"]
         elif export_type == "bill":
-            data = AnalyzeServices._export_bill_data(region_id, start_date, end_date)
+            data = AnalyzeServices._export_bill_data(all_region_ids, start_date, end_date)
             headers = ["账单ID", "电表编号", "用户姓名", "片区", "账单月份", "总用电量(度)", "总金额(元)", "状态", "到期日", "支付时间"]
         else:
             raise BusinessException("不支持的导出类型", 400)
@@ -817,8 +871,8 @@ class AnalyzeServices:
             }
     
     @staticmethod
-    def _export_usage_data(region_id, start_date, end_date):
-        """导出用电数据"""
+    def _export_usage_data(region_ids, start_date, end_date):
+        """导出用电数据（支持多个片区）"""
         query = db.session.query(
             Meter.meter_code,
             User.real_name,
@@ -839,8 +893,8 @@ class AnalyzeServices:
             UsageData.usage_time <= end_date
         )
         
-        if region_id:
-            query = query.filter(Meter.region_id == region_id)
+        if region_ids:
+            query = query.filter(Meter.region_id.in_(region_ids))
         
         results = query.all()
         
@@ -860,8 +914,8 @@ class AnalyzeServices:
         return data
     
     @staticmethod
-    def _export_bill_data(region_id, start_date, end_date):
-        """导出账单数据"""
+    def _export_bill_data(region_ids, start_date, end_date):
+        """导出账单数据（支持多个片区）"""
         query = db.session.query(
             Bill.id,
             Meter.meter_code,
@@ -884,8 +938,8 @@ class AnalyzeServices:
             Bill.bill_month <= end_date
         )
         
-        if region_id:
-            query = query.filter(Meter.region_id == region_id)
+        if region_ids:
+            query = query.filter(Meter.region_id.in_(region_ids))
         
         results = query.all()
         

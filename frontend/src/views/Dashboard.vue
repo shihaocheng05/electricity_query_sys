@@ -251,8 +251,8 @@ const usageChartOption = computed<EChartsOption>(() => ({
 const loadStatistics = async () => {
   try {
     const response = await queryApi.statisticsSummary({})
-    if (response.data.code === 200 && response.data.data) {
-      statistics.value = response.data.data
+    if (response.success && response.data) {
+      statistics.value = response.data
     }
   } catch (error) {
     console.error('加载统计数据失败:', error)
@@ -272,8 +272,8 @@ const loadUsageData = async (period: 'week' | 'month' | 'year') => {
       analysis_period: periodMap[period],
       compare_period: false
     })
-    if (response.data.code === 200 && response.data.data) {
-      usageData.value = response.data.data.trend_data || []
+    if (response.success && response.data) {
+      usageData.value = response.data.trend_data || []
     }
   } catch (error) {
     console.error('加载用电趋势失败:', error)
@@ -286,15 +286,15 @@ const loadRecentBills = async () => {
       page: 1,
       page_size: 5
     })
-    if (response.data.code === 200 && response.data.data) {
+    if (response.success && response.data) {
       // 将 BillInfo 显示到 Bill 类型
-      const bills = response.data.data.bills || []
-      recentBills.value = bills.map((bill: BillInfo) => ({
-        bill_id: bill.bill_id,
-        bill_no: `BILL-${bill.bill_id}`, // 生成账单编号
+      const bills = response.data.bills || []
+      recentBills.value = bills.map((bill: any) => ({
+        bill_id: bill.id,
+        bill_no: bill.meter_code || `BILL-${bill.id}`, // 使用后端返回的meter_code作为账单编号
         billing_period: bill.bill_month,
-        amount: bill.bill_amount,
-        status: bill.status === 'paid' ? 1 : 0 // 将字符串状态转换为数字
+        amount: bill.total_amount,
+        status: bill.status === 'PAID' || bill.status === 1 ? 1 : 0 // 正确判断大写的PAID
       }))
     }
   } catch (error) {
@@ -319,7 +319,7 @@ const handlePayBill = async (billId: number) => {
       payment_amount: bill.amount,
       payment_method: 'online'
     })
-    if (response.data.code === 200) {
+    if (response.success) {
       alert('支付成功！')
       loadRecentBills()
       loadStatistics()

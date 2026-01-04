@@ -26,7 +26,7 @@ class IoTData(db.Model):
     meter=db.relationship("Meter",backref="iotdatas")
 
     __table_arg__=(
-        db.UniqueConstraint("meter_id","collect_time","uniquecstr"),  # 修正拼写：UniqueConstrict -> UniqueConstraint
+        db.UniqueConstraint("meter_id","collect_time","uniquecstr"),
         db.Index("meter_collect_id","meter_id","collect_time")
     )
 

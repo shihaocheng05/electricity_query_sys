@@ -140,15 +140,15 @@ const tableData = ref<any[]>([])
 
 const tableColumns = computed(() => {
   const baseColumns = [
-    { key: 'date', label: '日期', width: '150px' },
-    { key: 'usage', label: '用电量 (kWh)', width: '150px', sortable: true }
+    { key: 'period', label: '日期', width: '150px' },
+    { key: 'total_electricity', label: '用电量 (kWh)', width: '150px', sortable: true }
   ]
   
   if (filters.value.analysisType === 'peak_valley') {
     return [
       ...baseColumns,
-      { key: 'peak_usage', label: '峰时用电 (kWh)', width: '150px', sortable: true },
-      { key: 'valley_usage', label: '谷时用电 (kWh)', width: '150px', sortable: true },
+      { key: 'peak_electricity', label: '峰时用电 (kWh)', width: '150px', sortable: true },
+      { key: 'valley_electricity', label: '谷时用电 (kWh)', width: '150px', sortable: true },
       { key: 'cost', label: '电费 (元)', width: '120px', sortable: true }
     ]
   }
@@ -313,16 +313,34 @@ const loadAnalysisData = async () => {
       compare_period: filters.value.analysisType === 'comparison'
     })
     
-    if (response.data.code === 200 && response.data.data) {
-      chartData.value = response.data.data.trend_data || []
+    console.log('=== 开始数据处理 ===')
+    console.log('API响应:', response)
+    console.log('response.success:', response.success)
+    console.log('response.data:', response.data)
+    console.log('response.trend_data:', response.data?.trend_data)
+    
+    // 直接使用response.data
+    const resultData = response.data
+    
+    if (resultData && resultData.trend_data) {
+      console.log('✅ 进入数据处理分支')
+      console.log('趋势数据:', resultData.trend_data)
+      console.log('趋势数据长度:', resultData.trend_data?.length)
+      
+      chartData.value = resultData.trend_data || []
+      console.log('chartData.value赋值后:', chartData.value.length, chartData.value)
+      
       tableData.value = chartData.value.map((d, index) => ({
         id: index,
         ...d
       }))
+      console.log('tableData.value:', tableData.value.length)
       
       // 计算摘要
       const totalUsage = chartData.value.reduce((sum, d) => sum + (d.total_electricity || d.usage || 0), 0)
       const days = chartData.value.length || 1
+      
+      console.log('计算摘要 - totalUsage:', totalUsage, 'days:', days)
       
       summary.value = {
         total_usage: Number(totalUsage.toFixed(2)),
@@ -330,6 +348,8 @@ const loadAnalysisData = async () => {
         peak_usage: Number(chartData.value.reduce((sum, d) => sum + (d.peak_electricity || d.peak_usage || 0), 0).toFixed(2)),
         valley_usage: Number(chartData.value.reduce((sum, d) => sum + (d.valley_electricity || d.valley_usage || 0), 0).toFixed(2))
       }
+      
+      console.log('summary.value计算后:', summary.value)
       
       toast.success('数据加载成功')
     }
@@ -351,10 +371,10 @@ const handleExport = async () => {
       format: 'excel'
     })
     
-    if (response.data.code === 200 && response.data.data) {
+    if (response.success && response.data) {
       // 获取下载链接和文件名
-      const downloadUrl: string = (response.data.data.download_url ?? response.data.data.file_name ?? '') as string
-      const fileName: string = (response.data.data.filename ?? response.data.data.file_name ?? 'export.xlsx') as string
+      const downloadUrl: string = (response.data.download_url ?? response.data.file_name ?? '') as string
+      const fileName: string = (response.data.filename ?? response.data.file_name ?? 'export.xlsx') as string
 
       // 验证下载链接
       if (!downloadUrl || downloadUrl.trim() === '') {
@@ -378,7 +398,8 @@ const handleExport = async () => {
 }
 
 onMounted(() => {
-  loadAnalysisData()
+  // 不自动加载，等待用户点击查询按钮
+  // 避免在用户没有绑定电表时出现错误
 })
 </script>
 

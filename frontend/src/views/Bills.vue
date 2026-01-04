@@ -233,18 +233,39 @@ const unpaidAmount = computed(() => {
 
 const loadBills = async () => {
   try {
-    const response = await billApi.queryBills({
+    const params: any = {
       page: currentPage.value,
-      page_size: pageSize.value,
-      billing_period: filters.value.billingPeriod,
-      status: filters.value.status,
-      min_amount: filters.value.minAmount,
-      max_amount: filters.value.maxAmount
-    })
+      per_page: pageSize.value,
+    }
     
-    if (response.data.code === 200 && response.data.data) {
-      bills.value = response.data.data.bills || []
-      totalCount.value = response.data.data.pagination?.total || 0
+    // 如果有账期筛选，转换为 start_month 和 end_month
+    if (filters.value.billingPeriod) {
+      params.start_month = filters.value.billingPeriod
+      params.end_month = filters.value.billingPeriod
+    }
+    
+    if (filters.value.status !== undefined) {
+      // 后端期望的是 UNPAID/PAID 字符串，需要转换
+      params.status = filters.value.status === 0 ? 'UNPAID' : 'PAID'
+    }
+    
+    const response = await billApi.queryBills(params)
+    
+    if (response.success && response.data) {
+      // 映射后端返回的字段到前端期望的字段
+      const backendBills = response.data.bills || []
+      bills.value = backendBills.map((bill: any) => ({
+        bill_id: bill.id,
+        bill_no: bill.meter_code, // 暂时用 meter_code
+        bill_month: bill.bill_month,
+        total_usage: bill.total_electricity,
+        bill_amount: bill.total_amount,
+        status: typeof bill.status === 'string' ? bill.status : (bill.status === 0 ? 'UNPAID' : 'PAID'),
+        generate_time: bill.create_time,
+        due_date: bill.due_date,
+        payment_time: bill.payment_time
+      }))
+      totalCount.value = response.data.pagination?.total || 0
     }
   } catch (error) {
     console.error('加载账单失败:', error)
@@ -289,7 +310,7 @@ const handlePayBill = async (billId: number) => {
       payment_method: 'ONLINE'
     })
     
-    if (response.data.code === 200) {
+    if (response.success) {
       alert('支付成功！')
       closeDetailModal()
       loadBills()
@@ -327,7 +348,7 @@ const handleSendReminder = async (billId: number) => {
   try {
     const response = await billApi.sendBillReminder(billId)
     
-    if (response.data.code === 200) {
+    if (response.success) {
       alert('提醒已发送！')
     }
   } catch (error: any) {
@@ -339,8 +360,8 @@ const viewBillDetail = async (billId: number) => {
   try {
     const response = await billApi.getBillDetail(billId)
     
-    if (response.data.code === 200 && response.data.data) {
-      billDetail.value = response.data.data
+    if (response.success && response.data) {
+      billDetail.value = response.data
       showDetailModal.value = true
     }
   } catch (error) {

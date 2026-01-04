@@ -18,6 +18,14 @@ export interface BillInfo {
 	generate_time?: string;
 	due_date?: string;
 	payment_time?: string;
+	details?: Array<{
+		detail_type: string;
+		time_period?: string;
+		ladder_level?: string;
+		electricity: number;
+		unit_price: number;
+		amount: number;
+	}>;
 }
 
 export interface PayBillParams {

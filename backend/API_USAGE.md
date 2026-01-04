@@ -19,12 +19,12 @@
 
 ## API 概览
 
-系统共包含 **6大模块**，**47+个API接口**：
+系统共包含 **6大模块**，**48+个API接口**：
 
 | 模块 | 接口数量 | 主要功能 |
 |------|---------|---------|
 | 用户模块 (`/user`) | 13个 | 注册、登录、用户信息管理、电表绑定、密码重置 |
-| 电表模块 (`/meter`) | 7个 | 电表安装、状态管理、维修、查询 |
+| 电表模块 (`/meter`) | 8个 | 电表安装、状态管理、维修、查询、空闲电表查询 |
 | 账单模块 (`/bill`) | 5个 | 账单生成、支付、查询、详情 |
 | 用电数据模块 (`/usage`) | 4个 | IoT数据上传、数据聚合、查询、人工录入 |
 | 查询分析模块 (`/query`) | 4个 | 统计概览、用户分析、片区分析、用电排名 |
@@ -51,7 +51,7 @@
 - `POST /user/reset-password` - 重置密码
 - `GET /user/list` - 用户列表（管理员）
 
-#### 电表模块 (7个接口)
+#### 电表模块 (8个接口)
 - `POST /meter/install` - 安装电表（管理员）
 - `PUT /meter/update-status` - 更新电表状态（管理员）
 - `POST /meter/add-record` - 添加操作记录（管理员）
@@ -59,6 +59,7 @@
 - `POST /meter/validate-reading` - 验证电表读数（管理员）
 - `GET /meter/query` - 查询电表列表
 - `GET /meter/records/<meter_id>` - 查询电表操作记录
+- `GET /meter/available` - 查询空闲电表列表（管理员）
 
 #### 账单模块 (5个接口)
 - `POST /bill/create` - 生成账单（管理员）
@@ -287,6 +288,20 @@ Authorization: Bearer <token>
 
 **接口**: `POST /api/v1/user/bind-meter`
 
+**权限**: 需要 `bind_meter` 权限
+
+**功能说明**: 将一个已存在但尚未分配给任何用户的电表（`user_id=null`）绑定到指定用户。此功能主要用于**电表更换**或**电表过户**场景。
+
+**使用场景**:
+- 电表更换：旧电表损坏，需要更换新电表
+- 电表过户：用户搬家或房屋转让，需要将现有电表绑定到新用户
+- 电表重新分配：电表已解绑，需要重新分配给用户
+
+**注意事项**:
+- 只能绑定未分配的电表（`user_id` 为空）
+- 电表和用户必须在同一片区
+- 如果需要新安装电表，请使用 `/meter/install` 接口
+
 **请求头**: 
 ```
 Authorization: Bearer <token>
@@ -299,6 +314,10 @@ Authorization: Bearer <token>
     "meter_code": "001-12345"
 }
 ```
+
+**参数说明**:
+- `target_user_id`: 目标用户ID（必填）
+- `meter_code`: 电表编号（必填）
 
 **响应示例**:
 ```json
@@ -592,6 +611,10 @@ Authorization: Bearer <token>
 
 **接口**: `POST /api/v1/meter/install`
 
+**权限**: 需要 `bind_meter` 权限（管理员）
+
+**功能说明**: 为用户安装全新的电表，系统将自动生成唯一电表编号，并自动绑定到指定用户。这是创建新电表并分配给用户的主要方式。
+
 **请求头**: 
 ```
 Authorization: Bearer <token>
@@ -602,10 +625,14 @@ Authorization: Bearer <token>
 {
     "target_user_id": 1,
     "region_id": 1,
-    "current_region_id": 1,
     "install_address": "北京市朝阳区XX路XX号"
 }
 ```
+
+**参数说明**:
+- `target_user_id`: 目标用户ID（必填）
+- `region_id`: 片区ID（必填）
+- `install_address`: 安装地址（必填，5-100字符）
 
 **响应示例**:
 ```json
@@ -846,6 +873,76 @@ record_type=MAINTAIN&page=1&per_page=20
             "per_page": 20
         }
     }
+}
+```
+
+---
+
+### 8. 查询空闲电表列表
+
+**接口**: `GET /api/v1/meter/available`
+
+**权限**: 需要管理员权限（`require_admin=True`）和 `query_meter` 权限
+
+**功能说明**: 查询未分配给任何用户的电表（`user_id` 为空且状态为正常的电表）。片区管理员只能查询本片区的空闲电表，超级管理员可以查询所有片区或指定片区的空闲电表。
+
+**使用场景**:
+- 查看可用于分配的电表
+- 为新用户分配电表前查看可用电表
+- 电表更换或过户前查看空闲电表编号
+
+**请求头**: 
+```
+Authorization: Bearer <token>
+```
+
+**Query参数**:
+- `region_id` (integer, 可选): 片区ID，超级管理员可指定片区筛选，片区管理员自动使用所属片区
+- `page` (integer, 默认: 1): 页码
+- `per_page` (integer, 默认: 20): 每页数量
+
+**请求示例**:
+```
+GET /api/v1/meter/available?region_id=1&page=1&per_page=20
+```
+
+**响应示例**:
+```json
+{
+    "success": true,
+    "message": "查询成功",
+    "data": {
+        "meters": [
+            {
+                "meter_id": 5,
+                "meter_code": "BJ-CY-S-202601021200-001",
+                "meter_type": "smart",
+                "install_address": "北京市朝阳区XX路XX号",
+                "install_time": "2026-01-02 12:00:00",
+                "region_name": "朝阳区",
+                "region_id": 1,
+                "status": "normal"
+            }
+        ],
+        "pagination": {
+            "total": 1,
+            "page": 1,
+            "per_page": 20,
+            "pages": 1,
+            "has_next": false,
+            "has_prev": false
+        }
+    }
+}
+```
+
+**错误响应**:
+- 权限不足 (403):
+```json
+{
+    "success": false,
+    "message": "此操作仅管理员可执行",
+    "code": 403
 }
 ```
 

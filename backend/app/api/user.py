@@ -379,7 +379,7 @@ def logout():
 
 
 @user_bp.route("/change-password", methods=["POST"])
-@check_permission(target_param="user_id",require_admin=False)  # 仅允许修改自己的密码
+@check_permission(require_admin=False)  # 仅允许修改自己的密码
 @validate_request(ValidateChangePassword)
 def change_password():
     """
@@ -394,8 +394,8 @@ def change_password():
     }
     """
     try:
-        # 修改密码只能操作自己，强制使用当前用户ID
-        user_id = g.target_user_id  # 使用target_user_id，装饰器已保证是本人
+        # 修改密码只能操作自己，使用当前登录用户ID
+        user_id = g.user_id  # 直接使用当前用户ID
         data = request.validate_data
         
         old_password = data.get("old_password")
